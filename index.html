@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Beckett's Code Quest — Learn Real Coding by Playing</title>
-<meta name="description" content="Guide Robo the robot through dungeons by writing real JavaScript. Sequences, loops, ifs, functions. Built by Beckett, age 9, and his dad's AI.">
+<meta name="description" content="Guide Robo the robot through 30 levels across 7 worlds by writing real JavaScript. Loops, ifs, functions, variables, booleans, keys, doors, and painting puzzles. Built by Beckett, age 9.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
 <style>
   :root{
@@ -13,7 +13,7 @@
     --brass:#d9a44e; --brass-soft:#b98a3f;
     --ink:#f2e9d8; --ink-dim:#c8b899;
     --good:#7fb069; --warn:#e2745c; --sel:#f5d066;
-    --floor:#efdcb4; --wall:#3a2a19; --radius:10px;
+    --floor:#efdcb4; --wall:#3a2a19; --paint:#e8b45a; --radius:10px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
@@ -21,18 +21,28 @@
     background:radial-gradient(1200px 700px at 50% -10%, #223428 0%, var(--felt) 45%, var(--felt-deep) 100%);
     min-height:100vh;padding:18px 14px 130px;
   }
-  .wrap{max-width:1120px;margin:0 auto}
+  .wrap{max-width:1140px;margin:0 auto}
   header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px}
   h1{font-size:clamp(1.5rem,3.5vw,2.1rem);font-weight:normal;letter-spacing:.5px}
   h1 .pc{color:var(--brass)}
   .tag{font-size:.85rem;color:var(--ink-dim);font-style:italic}
   a.sister{color:var(--brass);font-size:.85rem}
 
-  .levelbar{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 16px}
+  .worldbar{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 8px}
+  .worldbtn{
+    font-family:inherit;font-size:.88rem;color:var(--ink-dim);
+    background:var(--panel);border:1px solid #3a2d1d;border-radius:999px;
+    padding:6px 14px;cursor:pointer;
+  }
+  .worldbtn:hover{color:var(--ink)}
+  .worldbtn.current{color:#1c1409;font-weight:bold;border-color:transparent}
+  .worldbtn .wstars{font-size:.72rem;opacity:.85;margin-left:4px}
+
+  .levelbar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
   .lvlbtn{
     font-family:Verdana,sans-serif;font-size:.8rem;color:var(--ink-dim);
     background:var(--panel);border:1px solid #3a2d1d;border-radius:8px;
-    padding:6px 9px;cursor:pointer;line-height:1.2;text-align:center;min-width:44px;
+    padding:6px 9px;cursor:pointer;line-height:1.2;text-align:center;min-width:46px;
   }
   .lvlbtn:hover{color:var(--ink);border-color:var(--brass-soft)}
   .lvlbtn.current{background:var(--brass);color:#1c1409;border-color:var(--brass);font-weight:bold}
@@ -40,7 +50,7 @@
   .lvlbtn.current .st{color:#1c1409}
 
   .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
-  @media (max-width:920px){.layout{grid-template-columns:1fr}}
+  @media (max-width:940px){.layout{grid-template-columns:1fr}}
 
   .board-frame{
     background:linear-gradient(160deg,#3a2a19,#241a0e);
@@ -50,29 +60,58 @@
   .grid{display:grid;gap:2px;user-select:none}
   .cell{
     aspect-ratio:1;display:flex;align-items:center;justify-content:center;
-    border-radius:4px;font-size:clamp(.9rem,3.2vw,1.5rem);position:relative;
+    border-radius:4px;font-size:clamp(.8rem,2.8vw,1.4rem);position:relative;
   }
   .cell.floor{background:var(--floor)}
   .cell.wall{background:var(--wall);box-shadow:inset 0 2px 4px rgba(0,0,0,.5)}
-  .cell .dirbadge{position:absolute;right:2px;bottom:1px;font-size:.55em;color:#7a3b12}
-  .robotwrap{filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))}
+  .cell.target{background:var(--floor);box-shadow:inset 0 0 0 2px rgba(185,138,63,.8);background-image:repeating-linear-gradient(45deg,rgba(185,138,63,.15) 0 4px,transparent 4px 8px)}
+  .cell.painted{background:var(--paint);box-shadow:inset 0 0 0 2px #b98a3f}
+  .cell.trail{background:#e4cc95}
+  .gridwrap{position:relative}
+  #robot{
+    position:absolute;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;z-index:5;font-size:clamp(.8rem,2.8vw,1.4rem);
+    transition:left .15s linear,top .15s linear;
+  }
+  #robot .rbody{filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));animation:bob 1.8s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8%)}}
+  @media (prefers-reduced-motion:reduce){#robot .rbody{animation:none}}
+  #robot .rdir{position:absolute;right:4%;bottom:0;font-size:.5em;color:#7a3b12}
+  #bubble{
+    position:absolute;z-index:6;display:none;pointer-events:none;
+    background:#fff8e8;color:#2b2117;border:1px solid var(--brass-soft);border-radius:8px;
+    padding:3px 8px;font-family:Verdana,sans-serif;font-size:.72rem;max-width:200px;
+    transform:translate(-8%,-115%);box-shadow:0 4px 10px rgba(0,0,0,.35);white-space:nowrap;
+  }
+  .pop{position:absolute;z-index:6;pointer-events:none;font-size:1.15rem;animation:popfly .7s ease-out forwards}
+  @keyframes popfly{0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-130%) scale(1.7);opacity:0}}
+  #startotal{margin-left:auto;font-family:Verdana,sans-serif;font-size:.82rem;color:var(--sel);background:var(--panel);border:1px solid #3a2d1d;border-radius:999px;padding:6px 14px}
 
   .panel{background:var(--panel);border:1px solid #3a2d1d;border-radius:var(--radius);padding:14px;margin-bottom:12px}
   .panel h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.18em;color:var(--brass);font-weight:normal;margin-bottom:10px}
   .lesson h3{font-size:1.2rem;font-weight:normal;color:var(--brass);margin-bottom:6px}
+  .lesson .worldtag{font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);display:block;margin-bottom:4px}
   .lesson p{line-height:1.5;margin-bottom:8px;font-size:.95rem}
   .lesson code, .task code{font-family:Consolas,Monaco,monospace;background:var(--panel-2);border:1px solid #4a3a25;border-radius:4px;padding:1px 5px;font-size:.85em;color:var(--sel)}
   .task{background:var(--panel-2);border-left:3px solid var(--brass);padding:10px 12px;border-radius:0 8px 8px 0;font-size:.93rem;line-height:1.5}
   .task .par{display:block;margin-top:6px;color:var(--ink-dim);font-size:.85rem}
 
+  .snips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+  .snip{
+    font-family:Consolas,Monaco,monospace;font-size:.75rem;color:var(--sel);
+    background:var(--panel-2);border:1px solid #4a3a25;border-radius:6px;
+    padding:4px 8px;cursor:pointer;
+  }
+  .snip:hover{border-color:var(--brass)}
+
   textarea#editor{
-    width:100%;min-height:220px;resize:vertical;
+    width:100%;min-height:230px;resize:vertical;
     font-family:Consolas,Monaco,'Courier New',monospace;font-size:.95rem;line-height:1.5;
     background:#161009;color:#eae0c9;border:1px solid #4a3a25;border-radius:8px;
     padding:12px;tab-size:2;caret-color:var(--sel);
   }
   textarea#editor:focus{outline:2px solid var(--brass-soft)}
-  .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
   button.act{
     font-family:inherit;font-size:.95rem;color:var(--ink);
     background:var(--panel-2);border:1px solid #4a3a25;border-radius:8px;
@@ -82,6 +121,7 @@
   button.act.primary{background:var(--brass);color:#1c1409;border-color:var(--brass);font-weight:bold;font-size:1rem}
   button.act.primary:hover{filter:brightness(1.08);color:#1c1409}
   button.act:disabled{opacity:.4;cursor:default}
+  button.mini{font-size:.85rem;padding:6px 10px}
 
   .console{
     font-family:Consolas,Monaco,monospace;font-size:.85rem;line-height:1.6;
@@ -89,7 +129,7 @@
     padding:10px 12px;min-height:3.2em;max-height:150px;overflow-y:auto;white-space:pre-wrap;
   }
   .console .ok{color:var(--good)} .console .err{color:var(--warn)} .console .sayline{color:var(--sel)}
-  .cheats{font-family:Consolas,Monaco,monospace;font-size:.78rem;color:var(--ink-dim);line-height:1.7}
+  .cheats{font-family:Consolas,Monaco,monospace;font-size:.76rem;color:var(--ink-dim);line-height:1.7}
   .cheats b{color:var(--sel);font-weight:normal}
 
   .winbanner{
@@ -105,7 +145,6 @@
   .confetti{position:fixed;top:-40px;font-size:1.4rem;z-index:60;pointer-events:none;animation:fall linear forwards}
   @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
 
-  /* donation corner */
   .donate-corner{position:fixed;right:14px;bottom:14px;z-index:40;max-width:250px;background:linear-gradient(160deg,#3a2a19,#241a0e);border:1px solid var(--brass-soft);border-radius:12px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:.88rem;line-height:1.45}
   .donate-corner h3{color:var(--brass);font-size:.95rem;font-weight:normal;margin-bottom:4px;padding-right:14px}
   .donate-corner p{color:var(--ink-dim);margin-bottom:8px}
@@ -121,15 +160,15 @@
 <div class="wrap">
   <header>
     <h1><span class="pc">🤖</span> Beckett's Code Quest</h1>
-    <span class="tag">Write real JavaScript. Guide Robo. Learn to code by playing.</span>
-    <a class="sister" href="https://beckettschessacademy.com">♞ Play Beckett's Chess Academy →</a>
+    <span class="tag">Write real JavaScript. Guide Robo through 7 worlds. Learn to code by playing.</span>
   </header>
 
+  <div class="worldbar" id="worldbar"><span id="startotal">★ 0/84</span></div>
   <div class="levelbar" id="levelbar"></div>
 
   <div class="layout">
     <div>
-      <div class="board-frame"><div class="grid" id="grid"></div></div>
+      <div class="board-frame" id="boardframe"><div class="gridwrap" id="gridwrap"><div class="grid" id="grid"></div><div id="robot"><span class="rbody">🤖</span><span class="rdir">→</span></div><div id="bubble"></div></div></div>
       <div class="panel" style="margin-top:12px">
         <h2>Robo's radio</h2>
         <div class="console" id="console">Robo is waiting for your code…</div>
@@ -137,10 +176,11 @@
       <div class="panel">
         <h2>Robo's commands (cheat sheet)</h2>
         <div class="cheats">
-          <b>move();</b> take one step forward &nbsp;·&nbsp; <b>turnLeft();</b> / <b>turnRight();</b> rotate<br>
-          <b>canMove()</b> true if the path ahead is clear &nbsp;·&nbsp; <b>canMoveLeft()</b> / <b>canMoveRight()</b><br>
-          <b>atFlag()</b> true when standing on the flag &nbsp;·&nbsp; <b>gemsLeft()</b> gems still out there<br>
-          <b>say("hi");</b> Robo talks on the radio &nbsp;·&nbsp; Walk over a 💎 to collect it automatically
+          <b>move();</b> step forward &nbsp;·&nbsp; <b>turnLeft();</b> / <b>turnRight();</b> rotate<br>
+          <b>canMove()</b> path ahead clear? &nbsp;·&nbsp; <b>canMoveLeft()</b> / <b>canMoveRight()</b><br>
+          <b>atFlag()</b> standing on the flag? &nbsp;·&nbsp; <b>gemsLeft()</b> gems still out there<br>
+          <b>paint();</b> paint the square Robo is on &nbsp;·&nbsp; <b>say("hi");</b> talk on the radio<br>
+          Walk over 💎 to collect · Walk over 🔑 to grab it · A 🔑 unlocks one 🚪 door
         </div>
       </div>
     </div>
@@ -154,18 +194,22 @@
         </div>
       </div>
       <div class="panel lesson">
+        <span class="worldtag" id="lesson-world"></span>
         <h3 id="lesson-title"></h3>
         <p id="lesson-text"></p>
         <div class="task" id="lesson-task"></div>
       </div>
       <div class="panel">
-        <h2>Your code</h2>
+        <h2>Your code <span style="text-transform:none;letter-spacing:0;color:var(--ink-dim)">· click a chip to insert it</span></h2>
+        <div class="snips" id="snips"></div>
         <textarea id="editor" spellcheck="false"></textarea>
         <div class="btnrow">
           <button class="act primary" id="btn-run">▶ Run my code</button>
           <button class="act" id="btn-reset">Reset</button>
           <button class="act" id="btn-hint">Hint</button>
           <button class="act" id="btn-restart-code">Start over</button>
+          <button class="act mini" id="btn-speed" title="Animation speed">🐢 Normal</button>
+          <button class="act mini" id="btn-sound" title="Sound on/off">🔊</button>
         </div>
       </div>
     </div>
@@ -175,21 +219,32 @@
   Created by <strong>Beckett, age 9</strong> · <a href="https://beckettschessacademy.com">Beckett's Chess Academy</a></footer>
 </div>
 
-<!-- donation corner -->
-<aside class="donate-corner" id="donate-corner">
+<aside class="donate-corner" id="donate-corner" style="display:none">
   <button class="donate-close" id="donate-close" aria-label="Hide" title="Hide">×</button>
   <h3>🤖 Support the builder</h3>
   <p>Code Quest is a <strong>Beckett, age 9</strong> production. Like it? Support a young entrepreneur!</p>
   <a class="donate-btn" href="https://www.paypal.com/donate/?business=jeremyzeigler801%40gmail.com&amp;item_name=Support+Beckett%27s+Code+Quest&amp;currency_code=USD" target="_blank" rel="noopener">Donate via PayPal</a>
 </aside>
-<button class="donate-mini" id="donate-mini" title="Support Beckett">🤖 Tip Beckett</button>
+<button class="donate-mini" id="donate-mini" style="display:block" title="Support Beckett">🤖 Tip Beckett</button>
 
 <script>
+/* ============ WORLDS ============ */
+const WORLDS=[
+ {name:'First Steps',emoji:'🐣',color:'#7fb069',start:0,end:4},
+ {name:'Loop Power',emoji:'🔁',color:'#6a9fd8',start:5,end:9},
+ {name:'Smart Robo',emoji:'🧠',color:'#b287d8',start:10,end:14},
+ {name:'Variables & Functions',emoji:'🛠️',color:'#e0954f',start:15,end:19},
+ {name:'Master Quests',emoji:'🏆',color:'#e2745c',start:20,end:24},
+ {name:'Brain Teasers',emoji:'🧩',color:'#8fd0c8',start:25,end:27},
+ {name:'Playgrounds',emoji:'🧪',color:'#d9a44e',start:28,end:29}
+];
+
 /* ============ LEVELS ============ */
 const LEVELS=[
+/* ---------- WORLD 1: FIRST STEPS ---------- */
 {title:'Wake up, Robo!',
  text:'A program is a list of instructions the computer follows <em>in order, top to bottom</em>. Robo only understands commands written exactly right: <code>move();</code> means "take one step forward." The parentheses <code>()</code> and semicolon <code>;</code> matter!',
- task:'Get Robo to the 🚩 flag. He needs to walk <strong>3 squares</strong>. Type three <code>move();</code> commands, then press <strong>Run</strong>.',
+ task:'Get Robo to the 🚩 flag. He needs to walk <strong>3 squares</strong>. Type three <code>move();</code> commands (or click the chip 3 times!), then press <strong>Run</strong>.',
  map:['#######','#S..F##','#######'],facing:'E',par:3,
  starter:'// Commands run in order, top to bottom.\n// Robo takes one step with:  move();\n\nmove();\n',
  hint:'You need three move(); commands, each on its own line.',
@@ -211,6 +266,23 @@ const LEVELS=[
  hint:'Five moves east collects both gems. Then turn right and walk down.',
  solution:'move();\nmove();\nmove();\nmove();\nmove();\nturnRight();\nmove();\nmove();'},
 
+{title:'The zigzag path',
+ text:'Time to combine everything: moves, right turns, AND left turns. Plan the whole path before you run. Programmers call this <em>tracing</em>: follow the path with your finger and write one command per step.',
+ task:'Snake through the passage, collect both 💎, and reach the 🚩.<span class="par">⭐⭐⭐ challenge: 10 lines or fewer</span>',
+ map:['#######','#S.g###','###.###','###g..#','#####F#','#######'],facing:'E',par:10,
+ starter:'// Trace the path with your finger first!\n\n',
+ hint:'move, move, turnRight, move, move, turnLeft, move, move, turnRight, move.',
+ solution:'move();\nmove();\nturnRight();\nmove();\nmove();\nturnLeft();\nmove();\nmove();\nturnRight();\nmove();'},
+
+{title:'The locked door',
+ text:'New puzzle piece! A 🚪 door blocks the path like a wall, unless Robo is carrying a 🔑 key. Walk over the key to grab it, then walk into the door to unlock it. <strong>Order matters</strong>: key first, door second. That is true in real programs too.',
+ task:'Grab the 🔑, unlock the 🚪, reach the 🚩.<span class="par">⭐⭐⭐ challenge: 5 lines or fewer</span>',
+ map:['########','#S.k.DF#','########'],facing:'E',par:5,
+ starter:'// Just walk forward. The key and the door\n// are both on your path... in the right order.\n\n',
+ hint:'Five move(); commands. Robo grabs the key and unlocks the door automatically as he walks.',
+ solution:'move();\nmove();\nmove();\nmove();\nmove();'},
+
+/* ---------- WORLD 2: LOOP POWER ---------- */
 {title:'The long hallway (loops!)',
  text:'Typing <code>move();</code> nine times is boring, and programmers hate typing the same thing twice. A <strong>for loop</strong> repeats code for you: <code>for (let i = 0; i &lt; 9; i++) { move(); }</code> means "do move() nine times."',
  task:'The hallway is 9 squares long. Reach the 🚩 using a <strong>loop</strong>.<span class="par">⭐⭐⭐ challenge: 3 lines of code or fewer</span>',
@@ -227,6 +299,31 @@ const LEVELS=[
  hint:'Put all four commands inside one for loop that runs 4 times.',
  solution:'for (let i = 0; i < 4; i++) {\n  move();\n  turnRight();\n  move();\n  turnLeft();\n}'},
 
+{title:'Gem express',
+ text:'Loops + gems = easy money. Robo collects everything he walks over, so one good loop can clean out a whole hallway. Count the squares carefully: too few and you stop short, too many and BONK.',
+ task:'Collect all 4 💎 and reach the 🚩 at the end. It is 10 squares away.<span class="par">⭐⭐⭐ challenge: 3 lines or fewer</span>',
+ map:['#############','#S.g.g.g.g.F#','#############'],facing:'E',par:3,
+ starter:'// How many moves to reach the flag?\n// Count the squares, then loop!\n\n',
+ hint:'A for loop that runs 10 times, with move(); inside.',
+ solution:'for (let i = 0; i < 10; i++) {\n  move();\n}'},
+
+{title:'Paint a line',
+ text:'New power: <code>paint();</code> paints the square Robo is standing on! The striped squares are <strong>paint targets</strong>. Paint every target to win. The rhythm is: step, paint, step, paint…',
+ task:'Paint all 5 striped squares.<span class="par">⭐⭐⭐ challenge: 4 lines or fewer</span>',
+ map:['########','#S*****#','########'],facing:'E',par:4,
+ starter:'// paint(); paints the square under Robo.\n// Try:  move();  then  paint();\n\n',
+ hint:'A for loop that runs 5 times with move(); then paint(); inside.',
+ solution:'for (let i = 0; i < 5; i++) {\n  move();\n  paint();\n}'},
+
+{title:'Paint the donut',
+ text:'A loop <strong>inside</strong> a loop! The outer loop runs once per side, the inner loop paints one whole side. Four sides, four squares each. This "nested loop" idea powers everything from pixel art to spreadsheets.',
+ task:'Paint the whole donut. Lap the ring: 4 sides, and on each side move + paint 4 times, then turn right.<span class="par">⭐⭐⭐ challenge: 7 lines or fewer</span>',
+ map:['#######','#S****#','#*###*#','#*###*#','#*###*#','#*****#','#######'],facing:'E',par:7,
+ starter:'// for (let side = 0; side < 4; side++) {\n//   ...inner loop: move + paint 4 times...\n//   turnRight();\n// }\n\n',
+ hint:'Outer loop runs 4 times. Inside it: an inner loop (4 times) doing move(); paint(); and then one turnRight();',
+ solution:'for (let side = 0; side < 4; side++) {\n  for (let i = 0; i < 4; i++) {\n    move();\n    paint();\n  }\n  turnRight();\n}'},
+
+/* ---------- WORLD 3: SMART ROBO ---------- */
 {title:'While the path is clear',
  text:'What if you don’t know how long the hallway is? A <strong>while loop</strong> keeps going as long as something is true. <code>canMove()</code> tells Robo if the path ahead is clear. So <code>while (canMove()) { move(); }</code> means "keep walking until you hit a wall."',
  task:'Walk until the wall stops you. The 🚩 is at the end.<span class="par">⭐⭐⭐ challenge: 3 lines or fewer</span>',
@@ -235,21 +332,55 @@ const LEVELS=[
  hint:'The answer is in the comment. A while loop with canMove() and move().',
  solution:'while (canMove()) {\n  move();\n}'},
 
-{title:'Smart Robo (if / else)',
- text:'Now Robo makes <strong>decisions</strong>. An <code>if</code> checks a question: <code>if (canMove()) { move(); } else { turnRight(); }</code> means "walk if you can, otherwise turn right." Put that inside a while loop and Robo can follow winding paths all by himself.',
+{title:'Corridor turns (if / else)',
+ text:'Now Robo makes <strong>decisions</strong>. An <code>if</code> checks a question: <code>if (canMove()) { move(); } else { turnRight(); }</code> means "walk if you can, otherwise turn right." Put that inside a while loop and Robo follows winding paths all by himself.',
  task:'Reach the 🚩 with ONE rule: if Robo can move, move. If not, turn right. Loop until <code>atFlag()</code> is true.<span class="par">⭐⭐⭐ challenge: 7 lines or fewer</span>',
  map:['########','#S.....#','######.#','#F.....#','########'],facing:'E',par:7,
  starter:'// while (!atFlag()) {      the ! means NOT\n//   if (canMove()) { ... } else { ... }\n// }\n\n',
  hint:'while (!atFlag()) { if (canMove()) { move(); } else { turnRight(); } }',
  solution:'while (!atFlag()) {\n  if (canMove()) {\n    move();\n  } else {\n    turnRight();\n  }\n}'},
 
-{title:'Build your own command (functions)',
+{title:'Key hunt',
+ text:'Smart fact: <code>canMove()</code> says the path is clear if a 🚪 is ahead <em>and Robo holds a 🔑</em>. So your trusty while loop can walk right through locked doors, as long as the key comes first on the path.',
+ task:'Somewhere down this hall: a 🔑, then a 🚪, then the 🚩. One loop does it all.<span class="par">⭐⭐⭐ challenge: 3 lines or fewer</span>',
+ map:['##############','#S..k....D..F#','##############'],facing:'E',par:3,
+ starter:'// The same while loop from before\n// handles keys and doors automatically!\n\n',
+ hint:'while (canMove()) { move(); }',
+ solution:'while (canMove()) {\n  move();\n}'},
+
+{title:'The spiral cave',
+ text:'This cave spirals inward, and every turn is a <strong>right</strong> turn. Your if/else robot from before can handle it without a single change. That is the magic of good code: write it once, it works on bigger problems.',
+ task:'Spiral to the center 🚩, collecting the 💎 gems on the way.<span class="par">⭐⭐⭐ challenge: 7 lines or fewer</span>',
+ map:['#########','#S......#','#######.#','#..F###.#','#.#####.#','#.g...g.#','#########'],facing:'E',par:7,
+ starter:'// Same brain as Corridor Turns:\n// walk if you can, otherwise turn right.\n\n',
+ hint:'Exactly the same code as "Corridor turns". Really!',
+ solution:'while (!atFlag()) {\n  if (canMove()) {\n    move();\n  } else {\n    turnRight();\n  }\n}'},
+
+{title:'Robo Math',
+ text:'Code is also a calculator! <code>say(3 + 4);</code> makes Robo announce 7. The math symbols: <code>+</code> add, <code>-</code> subtract, <code>*</code> multiply, <code>/</code> divide. Never do homework by hand again (kidding… mostly).',
+ task:'Make Robo say the answer to <strong>6 × 7</strong>, but do NOT type the answer. Make the code compute it with <code>*</code>.<span class="par">⭐⭐⭐ challenge: 1 line</span>',
+ map:['#####','#S..#','#####'],facing:'E',par:1,
+ expectSay:'42',
+ starter:'// say(2 + 2);   makes Robo say 4\n// Your turn: make him say 6 times 7.\n\n',
+ hint:'say(6 * 7);',
+ solution:'say(6 * 7);'},
+
+/* ---------- WORLD 4: VARIABLES & FUNCTIONS ---------- */
+{title:'Build your own command',
  text:'You can teach Robo <strong>new tricks</strong> by writing a function: <code>function climbStep() { ... }</code> bundles commands into one new command you can call by name. This is how real programmers avoid repeating themselves.',
  task:'Same staircase as before, but this time define a function called <code>climbStep</code> and call it in a loop.<span class="par">⭐⭐⭐ challenge: 9 lines or fewer</span>',
  map:['#######','#S.####','##..###','###..##','####..#','#####F#','#######'],facing:'E',par:9,
  starter:'// function climbStep() {\n//   ...commands...\n// }\n// Then call it:  climbStep();\n\n',
  hint:'Put move(); turnRight(); move(); turnLeft(); inside the function, then call climbStep() in a for loop 4 times.',
  solution:'function climbStep() {\n  move();\n  turnRight();\n  move();\n  turnLeft();\n}\nfor (let i = 0; i < 4; i++) {\n  climbStep();\n}'},
+
+{title:'The double staircase',
+ text:'Here is why functions rock: this staircase has <strong>6 steps</strong> instead of 4, but your code barely changes. One number. That is the whole edit. Imagine fixing a bug in code you copy-pasted 6 times instead…',
+ task:'A taller staircase: 6 steps this time. Use your <code>climbStep</code> function.<span class="par">⭐⭐⭐ challenge: 9 lines or fewer</span>',
+ map:['#########','#S.######','##..#####','###..####','####..###','#####..##','######..#','#######F#','#########'],facing:'E',par:9,
+ starter:'// Your climbStep function from last level,\n// but the loop needs a different number!\n\n',
+ hint:'Same code as before, but the for loop runs 6 times.',
+ solution:'function climbStep() {\n  move();\n  turnRight();\n  move();\n  turnLeft();\n}\nfor (let i = 0; i < 6; i++) {\n  climbStep();\n}'},
 
 {title:'Counting with variables',
  text:'A <strong>variable</strong> is a box that stores a number: <code>let n = 1;</code>. You can change it as you go: <code>n = n + 1;</code>. Watch the map: Robo walks 1 square, then 2, then 3, then 4. The distance <em>grows</em>. A variable can remember it.',
@@ -259,6 +390,25 @@ const LEVELS=[
  hint:'Nested loops: the inner one runs n times. Turn right when i is even, left when i is odd. Then n = n + 1;',
  solution:'let n = 1;\nfor (let i = 0; i < 4; i++) {\n  for (let j = 0; j < n; j++) move();\n  if (i % 2 === 0) turnRight();\n  else turnLeft();\n  n = n + 1;\n}'},
 
+{title:'The gem counter',
+ text:'Variables can <strong>count things that happen</strong>. <code>gemsLeft()</code> tells you how many gems remain. Check it before a move and after: if the number dropped, you just collected one, so add 1 to your counter!',
+ task:'Walk the hall collecting every 💎, count them with a variable, and <code>say</code> your count at the end. (It should be 4!)<span class="par">⭐⭐⭐ challenge: 8 lines or fewer</span>',
+ map:['###########','#S.g.g..gg#','###########'],facing:'E',par:8,
+ expectSay:'4',
+ starter:'// let count = 0;\n// while (canMove()) {\n//   let before = gemsLeft();\n//   move();\n//   ...did gemsLeft() get smaller? count it!\n// }\n// say(count);\n\n',
+ hint:'Inside the loop: let before = gemsLeft(); move(); if (gemsLeft() < before) count = count + 1; Then say(count); after the loop.',
+ solution:'let count = 0;\nwhile (canMove()) {\n  let before = gemsLeft();\n  move();\n  if (gemsLeft() < before) count = count + 1;\n}\nsay(count);'},
+
+{title:'Word machine',
+ text:'Variables can hold <strong>words</strong> too. Text in quotes is called a <em>string</em>: <code>let name = "Robo";</code>. Glue strings together with <code>+</code>: <code>say("Go " + name);</code> says "Go Robo". Watch your spaces inside the quotes!',
+ task:'Make a variable called <code>name</code> holding <code>"Robo"</code>, then make him say exactly: <strong>Go Robo!</strong><span class="par">⭐⭐⭐ challenge: 2 lines</span>',
+ map:['#####','#S..#','#####'],facing:'E',par:2,
+ expectSay:'Go Robo!',
+ starter:'// let name = "Robo";\n// say("Go " + name + "!");\n\n',
+ hint:'Two lines: the variable, then say("Go " + name + "!");',
+ solution:'let name = "Robo";\nsay("Go " + name + "!");'},
+
+/* ---------- WORLD 5: MASTER QUESTS ---------- */
 {title:'The Maze',
  text:'The famous <strong>right-hand rule</strong>: keep your right hand on the wall and you will escape any simple maze. In code: if you can turn right, do it and step. Otherwise walk straight. Otherwise turn left. You now know everything you need!',
  task:'Escape the maze and reach the 🚩 using the right-hand rule.<span class="par">⭐⭐⭐ challenge: 10 lines or fewer</span>',
@@ -267,21 +417,82 @@ const LEVELS=[
  hint:'while (!atFlag()) { if (canMoveRight()) { turnRight(); move(); } else if (canMove()) { move(); } else { turnLeft(); } }',
  solution:'while (!atFlag()) {\n  if (canMoveRight()) {\n    turnRight();\n    move();\n  } else if (canMove()) {\n    move();\n  } else {\n    turnLeft();\n  }\n}'},
 
-{title:'BOSS LEVEL: The Gem Dungeon',
- text:'Everything at once: a maze, four 💎 gems, and one 🚩. Your right-hand-rule robot from last level is smart enough, if the gems are on his path. Can you beat the boss?',
- task:'Collect all 4 💎 and reach the 🚩. Any code you want. You’ve got this.<span class="par">⭐⭐⭐ challenge: 10 lines or fewer</span>',
+{title:'Maze of keys',
+ text:'Same maze bones, new twist: a 🚪 blocks the exit and the 🔑 is deep inside. Good news: your right-hand robot picks up keys and opens doors automatically as it walks. Old code, new powers.',
+ task:'Find the 🔑, unlock the 🚪, escape to the 🚩.<span class="par">⭐⭐⭐ challenge: 10 lines or fewer</span>',
+ map:['#########','#S#.D.#F#','#.#.#.#.#','#.#.#.#.#','#.k.#...#','#########'],facing:'S',par:10,
+ starter:'// Your right-hand rule code works here too.\n\n',
+ hint:'Exactly the same right-hand rule code as The Maze.',
+ solution:'while (!atFlag()) {\n  if (canMoveRight()) {\n    turnRight();\n    move();\n  } else if (canMove()) {\n    move();\n  } else {\n    turnLeft();\n  }\n}'},
+
+{title:'The painted path',
+ text:'Combine skills: navigate the spiral <em>and</em> paint every striped square along the way. Just add one <code>paint();</code> to your trusty loop. One line of code, whole new ability. That is programming.',
+ task:'Paint every striped square on the way to the 🚩.<span class="par">⭐⭐⭐ challenge: 8 lines or fewer</span>',
+ map:['#########','#S******#','#######*#','#**F###*#','#*#####*#','#*******#','#########'],facing:'E',par:8,
+ starter:'// Spiral code + paint();\n// Paint right after every move.\n\n',
+ hint:'The spiral-cave loop, but with paint(); right after move();',
+ solution:'while (!atFlag()) {\n  if (canMove()) {\n    move();\n    paint();\n  } else {\n    turnRight();\n  }\n}'},
+
+{title:'The Gem Dungeon',
+ text:'A full dungeon: a maze, four 💎 gems, and one 🚩. Your right-hand-rule robot is smart enough, if the gems are on his path. One change: keep looping until you are at the flag <em>and</em> the gems are gone.',
+ task:'Collect all 4 💎 and reach the 🚩.<span class="par">⭐⭐⭐ challenge: 10 lines or fewer</span>',
  map:['###########','#S#.g.#...#','#.#.#.#.#g#','#.#.#.#.#.#','#.g.#.g.#F#','###########'],facing:'S',par:10,
- starter:'// Use everything you know!\n\n',
- hint:'The right-hand rule from The Maze works here too. The gems are all on the path.',
+ starter:'// while (!atFlag() || gemsLeft() > 0) { ... }\n// The || means OR.\n\n',
+ hint:'Right-hand rule, but the while condition is: !atFlag() || gemsLeft() > 0',
  solution:'while (!atFlag() || gemsLeft() > 0) {\n  if (canMoveRight()) {\n    turnRight();\n    move();\n  } else if (canMove()) {\n    move();\n  } else {\n    turnLeft();\n  }\n}'},
 
+{title:'FINAL BOSS: The Grand Dungeon',
+ text:'Everything you have learned in one dungeon: a maze, 4 💎 gems, a 🔑, a locked 🚪 guarding the flag, and one loop to rule them all. Beat this and you are officially a programmer. We are not even joking.',
+ task:'Collect all 4 💎, grab the 🔑, unlock the 🚪, and reach the 🚩. You’ve got this.<span class="par">⭐⭐⭐ challenge: 10 lines or fewer</span>',
+ map:['###########','#S#.g.#...#','#k#.#.#.#g#','#.#.#.#.#D#','#.g.#.g.#F#','###########'],facing:'S',par:10,
+ starter:'// One loop. All the skills. Go!\n\n',
+ hint:'Same code as The Gem Dungeon. The key and door take care of themselves.',
+ solution:'while (!atFlag() || gemsLeft() > 0) {\n  if (canMoveRight()) {\n    turnRight();\n    move();\n  } else if (canMove()) {\n    move();\n  } else {\n    turnLeft();\n  }\n}'},
+
+/* ---------- WORLD 6: BRAIN TEASERS ---------- */
+{title:'True or false?',
+ text:'Computers answer yes/no questions with <strong>booleans</strong>: <code>true</code> and <code>false</code>. Comparisons make them: <code>10 &gt; 5</code> is true, <code>3 === 4</code> is false. You have been using booleans all along — <code>canMove()</code> returns one!',
+ task:'Make Robo say the answer to: is 10 greater than 5? Don’t type the word — make the code compare with <code>&gt;</code>.<span class="par">⭐⭐⭐ challenge: 1 line</span>',
+ map:['#####','#S..#','#####'],facing:'E',par:1,
+ expectSay:'true',
+ starter:'// say(2 > 7);   would make Robo say false\n// Your turn: is 10 greater than 5?\n\n',
+ hint:'say(10 > 5);',
+ solution:'say(10 > 5);'},
+
+{title:'Countdown!',
+ text:'Loops can count <strong>down</strong> too. <code>for (let i = 5; i &gt;= 1; i--) { }</code> starts at 5 and shrinks: <code>i--</code> means "subtract 1." Rocket launches, game timers, and microwave clocks all run on this.',
+ task:'Make Robo count down: say 5, then 4, 3, 2, 1. Use ONE loop, not five say lines!<span class="par">⭐⭐⭐ challenge: 3 lines or fewer</span>',
+ map:['#####','#S..#','#####'],facing:'E',par:3,
+ expectSayAll:['5','4','3','2','1'],
+ starter:'// for (let i = 5; i >= 1; i--) {\n//   ...say something...\n// }\n\n',
+ hint:'for (let i = 5; i >= 1; i--) { say(i); }',
+ solution:'for (let i = 5; i >= 1; i--) {\n  say(i);\n}'},
+
+{title:'Secret code',
+ text:'Grand finale of brain school: mix <strong>strings and math in one line</strong>. Parentheses make the math happen first: <code>say("total: " + (2 + 3));</code> says "total: 5". Without the parentheses you get "total: 23" — strings glue instead of add. Sneaky!',
+ task:'Make Robo say exactly: <strong>3 + 4 is 7</strong> — and the 7 must be computed by the code, not typed.<span class="par">⭐⭐⭐ challenge: 1 line</span>',
+ map:['#####','#S..#','#####'],facing:'E',par:1,
+ expectSay:'3 + 4 is 7',
+ starter:'// say("3 + 4 is " + (3 + 4));\n// Try removing the () around 3 + 4. What happens?\n\n',
+ hint:'say("3 + 4 is " + (3 + 4));',
+ solution:'say("3 + 4 is " + (3 + 4));'},
+
+/* ---------- WORLD 7: PLAYGROUNDS ---------- */
 {title:'Playground (free code!)',playground:true,
- text:'No goal, no rules. This big room is yours. Try <code>say("hello world");</code>, draw shapes with loops, invent functions. Breaking things is how programmers learn, and Reset fixes everything.',
- task:'Experiment! Ideas: walk a full square lap around the room · make Robo say a countdown from 10 · write a function called <code>dance()</code>.',
+ text:'No goal, no rules. This big room is yours. Try <code>say("hello world");</code>, invent functions, chase the gems. Breaking things is how programmers learn, and Reset fixes everything.',
+ task:'Experiment! Ideas: walk a full lap · say a countdown from 10 · write a function called <code>dance()</code>.',
  map:['############','#S.........#','#..g....g..#','#..........#','#....g.....#','#..........#','#..g....g..#','#..........#','############'],facing:'E',par:99,
  starter:'// Robo is all yours. Try:\nfor (let i = 0; i < 4; i++) {\n  say("Lap side " + (i + 1));\n  while (canMove()) move();\n  turnRight();\n}\n',
  hint:'There is nothing to solve here. Change the code and see what happens!',
- solution:'say("I am free!");'}
+ solution:'say("I am free!");'},
+
+{title:'Art studio',playground:true,
+ text:'A blank canvas and a paint bot. Use loops to paint stripes, squares, or your own pixel art. Great artists steal… loops from earlier levels.',
+ task:'Paint something cool! Ideas: a checkerboard · your first initial · a frame around the whole room.',
+ map:['###########','#S........#','#.........#','#.........#','#.........#','#.........#','#.........#','###########'],facing:'E',par:99,
+ starter:'// Paint a stripe:\nfor (let i = 0; i < 8; i++) {\n  move();\n  paint();\n}\n',
+ hint:'Try painting a square: 4 sides, like the donut level.',
+ solution:'paint();'}
 ];
 
 /* ============ SANDBOXED RUNNER (Web Worker) ============ */
@@ -290,75 +501,178 @@ function workerMain(){
     const L=e.data;
     const DIRS=[[-1,0],[0,1],[1,0],[0,-1]]; /* N E S W */
     const grid=L.rows.map(r=>r.split(''));
-    let pos=null,totalGems=0;
+    const targetSet={};
+    let pos=null,totalGems=0,totalTargets=0,totalFlags=0;
     for(let r=0;r<grid.length;r++)for(let c=0;c<grid[r].length;c++){
-      if(grid[r][c]==='S'){pos=[r,c];grid[r][c]='.';}
-      if(grid[r][c]==='g')totalGems++;
+      const ch=grid[r][c];
+      if(ch==='S'){pos=[r,c];grid[r][c]='.';}
+      if(ch==='g')totalGems++;
+      if(ch==='F')totalFlags++;
+      if(ch==='*'){targetSet[r+','+c]=true;totalTargets++;grid[r][c]='.';}
     }
     let dir={N:0,E:1,S:2,W:3}[L.facing];
-    const actions=[];let steps=0,collected=0,won=false;
+    const actions=[];let steps=0,collected=0,keys=0,won=false,paintedTargets=0;
+    const paintedSet={};const said=[];
     function mkErr(m){const er=new Error(m);er.friendly=true;return er;}
-    function guard(){if(++steps>500)throw mkErr('Robo is exhausted! Over 500 actions. Is a loop running forever?');}
+    function guard(){if(++steps>800)throw mkErr('Robo is exhausted! Over 800 actions. Is a loop running forever?');}
     function cellAt(r,c){return (grid[r]&&grid[r][c])?grid[r][c]:'#';}
     function ahead(d){const v=DIRS[(dir+d)%4];return [pos[0]+v[0],pos[1]+v[1]];}
-    function checkWin(){if(collected===totalGems&&cellAt(pos[0],pos[1])==='F')won=true;}
-    function move(){guard();const [r,c]=ahead(0);
-      if(cellAt(r,c)==='#')throw mkErr('BONK! Robo walked into a wall. Check his path and direction.');
+    function passable(r,c){const ch=cellAt(r,c);if(ch==='#')return false;if(ch==='D')return keys>0;return true;}
+    function checkWin(){
+      if(won)return;
+      const gemsOk=collected===totalGems;
+      if(L.expectSayAll){
+        if(gemsOk&&L.expectSayAll.every(v=>said.indexOf(String(v))>=0))won=true;
+        return;
+      }
+      if(L.expectSay!==undefined){
+        if(gemsOk&&said.some(v=>v===String(L.expectSay)))won=true;
+        return;
+      }
+      const paintOk=paintedTargets===totalTargets;
+      const flagOk=totalFlags===0||cellAt(pos[0],pos[1])==='F';
+      if(totalFlags===0&&totalTargets===0&&totalGems===0)return; /* playground */
+      if(gemsOk&&paintOk&&flagOk)won=true;
+    }
+    function move(){guard();const [r,c]=ahead(0);const ch=cellAt(r,c);
+      if(ch==='#')throw mkErr('BONK! Robo walked into a wall. Check his path and direction.');
+      if(ch==='D'){
+        if(keys>0){keys--;grid[r][c]='.';actions.push({t:'door',r,c});}
+        else throw mkErr('The door is locked! Robo needs to grab a 🔑 first.');
+      }
       pos=[r,c];actions.push({t:'move',r,c,dir});
       if(grid[r][c]==='g'){grid[r][c]='.';collected++;actions.push({t:'gem',r,c});}
+      if(grid[r][c]==='k'){grid[r][c]='.';keys++;actions.push({t:'key',r,c});}
       checkWin();}
     function turnLeft(){guard();dir=(dir+3)%4;actions.push({t:'turn',dir});}
     function turnRight(){guard();dir=(dir+1)%4;actions.push({t:'turn',dir});}
-    function canMove(){const [r,c]=ahead(0);return cellAt(r,c)!=='#';}
-    function canMoveLeft(){const [r,c]=ahead(3);return cellAt(r,c)!=='#';}
-    function canMoveRight(){const [r,c]=ahead(1);return cellAt(r,c)!=='#';}
+    function canMove(){const [r,c]=ahead(0);return passable(r,c);}
+    function canMoveLeft(){const [r,c]=ahead(3);return passable(r,c);}
+    function canMoveRight(){const [r,c]=ahead(1);return passable(r,c);}
     function atFlag(){return cellAt(pos[0],pos[1])==='F';}
     function gemsLeft(){return totalGems-collected;}
-    function say(msg){guard();actions.push({t:'say',msg:String(msg).slice(0,80)});}
+    function paint(){guard();const k=pos[0]+','+pos[1];
+      if(!paintedSet[k]){paintedSet[k]=true;if(targetSet[k])paintedTargets++;}
+      actions.push({t:'paint',r:pos[0],c:pos[1]});
+      checkWin();}
+    function say(msg){guard();const s=String(msg).slice(0,80);said.push(s);actions.push({t:'say',msg:s});checkWin();}
     try{
-      const fn=new Function('move','turnLeft','turnRight','canMove','canMoveLeft','canMoveRight','atFlag','gemsLeft','say','"use strict";\n'+L.code);
-      fn(move,turnLeft,turnRight,canMove,canMoveLeft,canMoveRight,atFlag,gemsLeft,say);
+      const fn=new Function('move','turnLeft','turnRight','canMove','canMoveLeft','canMoveRight','atFlag','gemsLeft','paint','say','"use strict";\n'+L.code);
+      fn(move,turnLeft,turnRight,canMove,canMoveLeft,canMoveRight,atFlag,gemsLeft,paint,say);
       checkWin();
-      postMessage({ok:true,won,actions,collected,totalGems});
+      postMessage({ok:true,won,actions,collected,totalGems,paintedTargets,totalTargets,expectSay:L.expectSay,expectSayAll:L.expectSayAll||null,saidOk:L.expectSay!==undefined?said.some(v=>v===String(L.expectSay)):null});
     }catch(err){
-      postMessage({ok:false,error:(err&&err.friendly)?err.message:('Code error: '+(err&&err.message?err.message:err)),actions,won:false,collected,totalGems});
+      postMessage({ok:false,error:(err&&err.friendly)?err.message:('Code error: '+(err&&err.message?err.message:err)),actions,won:false,collected,totalGems,paintedTargets,totalTargets});
     }
   };
 }
 const workerURL=URL.createObjectURL(new Blob(['('+workerMain.toString()+')()'],{type:'application/javascript'}));
 
+/* ============ SOUND ============ */
+let audioCtx=null;
+let muted=false;
+try{muted=localStorage.getItem('codequest2-mute')==='1';}catch(e){}
+function beep(freq,dur,type,vol){
+  if(muted)return;
+  try{
+    if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type||'square';o.frequency.value=freq;
+    g.gain.value=vol||0.04;
+    g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+(dur||0.08));
+    o.connect(g);g.connect(audioCtx.destination);
+    o.start();o.stop(audioCtx.currentTime+(dur||0.08));
+  }catch(e){}
+}
+const SFX={
+  move:()=>beep(240,0.05,'square',0.02),
+  gem:()=>beep(880,0.12,'triangle',0.06),
+  key:()=>beep(660,0.12,'triangle',0.06),
+  door:()=>{beep(440,0.1,'triangle',0.05);setTimeout(()=>beep(550,0.12,'triangle',0.05),90);},
+  paint:()=>beep(330,0.05,'sine',0.04),
+  say:()=>beep(520,0.07,'sine',0.04),
+  err:()=>beep(110,0.3,'sawtooth',0.06),
+  win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.16,'triangle',0.06),i*110));}
+};
+
 /* ============ GAME UI ============ */
 const gridEl=document.getElementById('grid');
+const gridwrap=document.getElementById('gridwrap');
+const robotEl=document.getElementById('robot');
+const robotDir=robotEl.querySelector('.rdir');
+const bubbleEl=document.getElementById('bubble');
+const boardframe=document.getElementById('boardframe');
+let bubbleTimer=null;
+function placeRobot(ms){
+  const rows=view.rows.length,cols=view.rows[0].length;
+  robotEl.style.transitionDuration=(ms||0)+'ms';
+  robotEl.style.width=(100/cols)+'%';robotEl.style.height=(100/rows)+'%';
+  robotEl.style.left=(view.pos[1]*100/cols)+'%';
+  robotEl.style.top=(view.pos[0]*100/rows)+'%';
+  robotDir.textContent=DIRCHAR[view.dir];
+}
+function showBubble(text){
+  const rows=view.rows.length,cols=view.rows[0].length;
+  bubbleEl.textContent=text;
+  bubbleEl.style.left=(view.pos[1]*100/cols+50/cols)+'%';
+  bubbleEl.style.top=(view.pos[0]*100/rows)+'%';
+  bubbleEl.style.display='block';
+  clearTimeout(bubbleTimer);
+  bubbleTimer=setTimeout(()=>{bubbleEl.style.display='none';},1600);
+}
+function spawnPop(r,c,emoji){
+  const rows=view.rows.length,cols=view.rows[0].length;
+  const sp=document.createElement('span');
+  sp.className='pop';sp.textContent=emoji;
+  sp.style.left=(c*100/cols+20/cols)+'%';
+  sp.style.top=(r*100/rows)+'%';
+  gridwrap.appendChild(sp);
+  setTimeout(()=>sp.remove(),750);
+}
 const consoleEl=document.getElementById('console');
 const editor=document.getElementById('editor');
+const worldbar=document.getElementById('worldbar');
 const levelbar=document.getElementById('levelbar');
 const winbanner=document.getElementById('winbanner');
 const DIRCHAR=['↑','→','↓','←'];
-let cur=0,hintStage=0,animating=false;
-let progress={};
-try{progress=JSON.parse(localStorage.getItem('codequest-progress')||'{}');}catch(e){}
-function saveProgress(){try{localStorage.setItem('codequest-progress',JSON.stringify(progress));}catch(e){}}
-let view=null; /* {rows(grid chars), pos, dir} */
+let cur=0,hintStage=0,animating=false,curWorld=0;
+let progress={},savedCode={};
+try{progress=JSON.parse(localStorage.getItem('codequest2-progress')||'{}');}catch(e){}
+try{savedCode=JSON.parse(localStorage.getItem('codequest2-code')||'{}');}catch(e){}
+function saveProgress(){try{localStorage.setItem('codequest2-progress',JSON.stringify(progress));}catch(e){}}
+function saveCode(){try{savedCode[cur]=editor.value;localStorage.setItem('codequest2-code',JSON.stringify(savedCode));}catch(e){}}
+let fast=false;
+try{fast=localStorage.getItem('codequest2-fast')==='1';}catch(e){}
+let view=null;
 
+function worldOf(i){for(let w=0;w<WORLDS.length;w++)if(i>=WORLDS[w].start&&i<=WORLDS[w].end)return w;return 0;}
 function levelState(L){
   const rows=L.map.map(r=>r.split(''));
-  let pos=null;
-  for(let r=0;r<rows.length;r++)for(let c=0;c<rows[r].length;c++)
+  let pos=null;const targets=new Set();
+  for(let r=0;r<rows.length;r++)for(let c=0;c<rows[r].length;c++){
     if(rows[r][c]==='S'){pos=[r,c];rows[r][c]='.';}
-  return {rows,pos,dir:{N:0,E:1,S:2,W:3}[L.facing]};
+    if(rows[r][c]==='*'){targets.add(r+','+c);rows[r][c]='.';}
+  }
+  return {rows,pos,dir:{N:0,E:1,S:2,W:3}[L.facing],targets,painted:new Set(),trail:[]};
 }
 function renderGrid(){
-  const L=LEVELS[cur],rows=view.rows;
+  const rows=view.rows;
   gridEl.style.gridTemplateColumns='repeat('+rows[0].length+',1fr)';
   let html='';
   for(let r=0;r<rows.length;r++)for(let c=0;c<rows[r].length;c++){
-    const ch=rows[r][c];
+    const ch=rows[r][c],k=r+','+c;
     const isRobot=view.pos[0]===r&&view.pos[1]===c;
+    let cls=ch==='#'?'wall':'floor';
+    if(view.painted.has(k))cls='floor painted';
+    else if(view.targets.has(k))cls='floor target';
+    else if(view.trail.indexOf(k)>=0)cls='floor trail';
     let inner='';
-    if(isRobot)inner='<span class="robotwrap">🤖</span><span class="dirbadge">'+DIRCHAR[view.dir]+'</span>';
+    if(isRobot)inner='';
     else if(ch==='g')inner='💎';
+    else if(ch==='k')inner='🔑';
+    else if(ch==='D')inner='🚪';
     else if(ch==='F')inner='🚩';
-    html+='<div class="cell '+(ch==='#'?'wall':'floor')+'">'+inner+'</div>';
+    html+='<div class="cell '+cls+'">'+inner+'</div>';
   }
   gridEl.innerHTML=html;
 }
@@ -370,29 +684,55 @@ function log(msg,cls){
   consoleEl.scrollTop=consoleEl.scrollHeight;
 }
 function clearConsole(){consoleEl.innerHTML='';}
+function worldStars(w){
+  let s=0;for(let i=WORLDS[w].start;i<=WORLDS[w].end;i++)s+=progress[i]||0;
+  return s;
+}
+function renderWorldbar(){
+  worldbar.innerHTML='';
+  let tot=0;for(const k in progress)tot+=progress[k];
+  const scoring=LEVELS.filter(L=>!L.playground).length*3;
+  WORLDS.forEach((W,w)=>{
+    const b=document.createElement('button');
+    b.className='worldbtn'+(w===curWorld?' current':'');
+    if(w===curWorld)b.style.background=W.color;
+    const max=(W.end-W.start+1)*3;
+    b.innerHTML=W.emoji+' '+W.name+'<span class="wstars">'+worldStars(w)+'/'+max+'★</span>';
+    b.addEventListener('click',()=>{curWorld=w;loadLevel(W.start);});
+    worldbar.appendChild(b);
+  });
+  const stEl=document.createElement('span');
+  stEl.id='startotal';
+  stEl.textContent='★ '+tot+'/'+scoring;
+  worldbar.appendChild(stEl);
+}
 function renderLevelbar(){
   levelbar.innerHTML='';
-  LEVELS.forEach((L,i)=>{
+  const W=WORLDS[curWorld];
+  for(let i=W.start;i<=W.end;i++){
     const b=document.createElement('button');
     b.className='lvlbtn'+(i===cur?' current':'');
     const st=progress[i]?'★'.repeat(progress[i]):'';
-    b.innerHTML=(i+1)+(L.playground?'🧪':'')+'<span class="st">'+st+'</span>';
-    b.title=L.title;
+    b.innerHTML=(i+1)+(LEVELS[i].playground?'🧪':'')+'<span class="st">'+st+'</span>';
+    b.title=LEVELS[i].title;
     b.addEventListener('click',()=>loadLevel(i));
     levelbar.appendChild(b);
-  });
+  }
 }
 function loadLevel(i){
-  cur=i;hintStage=0;
+  cur=i;hintStage=0;curWorld=worldOf(i);
   const L=LEVELS[i];
   view=levelState(L);
+  document.getElementById('lesson-world').textContent=WORLDS[curWorld].emoji+' World '+(curWorld+1)+': '+WORLDS[curWorld].name;
   document.getElementById('lesson-title').textContent='Level '+(i+1)+': '+L.title;
   document.getElementById('lesson-text').innerHTML=L.text;
   document.getElementById('lesson-task').innerHTML=L.task;
-  editor.value=L.starter;
+  editor.value=savedCode[i]!==undefined?savedCode[i]:L.starter;
   winbanner.classList.remove('show');
   clearConsole();log('Robo is ready. Level '+(i+1)+': '+L.title);
-  renderGrid();renderLevelbar();
+  renderGrid();placeRobot(0);renderWorldbar();renderLevelbar();
+  boardframe.style.borderColor=WORLDS[curWorld].color;
+  bubbleEl.style.display='none';
 }
 function codeLines(code){
   return code.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('//')).length;
@@ -419,8 +759,9 @@ function animate(actions,done){
   animating=true;
   document.getElementById('btn-run').disabled=true;
   let list=actions,truncated=false;
-  if(list.length>150){list=list.slice(0,150);truncated=true;}
-  const delay=list.length>120?25:list.length>40?90:190;
+  if(list.length>200){list=list.slice(0,200);truncated=true;}
+  let delay=list.length>120?30:list.length>40?90:190;
+  if(fast)delay=Math.max(15,Math.round(delay*0.3));
   let i=0;
   function step(){
     if(i>=list.length){
@@ -428,11 +769,18 @@ function animate(actions,done){
       animating=false;document.getElementById('btn-run').disabled=false;done();return;
     }
     const a=list[i++];
-    if(a.t==='move'){view.pos=[a.r,a.c];view.dir=a.dir;}
-    else if(a.t==='turn'){view.dir=a.dir;}
-    else if(a.t==='gem'){view.rows[a.r][a.c]='.';log('💎 Gem collected!','ok');}
-    else if(a.t==='say'){log('🤖 Robo says: '+a.msg,'sayline');}
-    renderGrid();
+    if(a.t==='move'){
+      view.trail.push(view.pos[0]+','+view.pos[1]);
+      if(view.trail.length>4)view.trail.shift();
+      view.pos=[a.r,a.c];view.dir=a.dir;SFX.move();
+      renderGrid();placeRobot(Math.max(40,delay*0.85));
+    }
+    else if(a.t==='turn'){view.dir=a.dir;placeRobot(0);}
+    else if(a.t==='gem'){view.rows[a.r][a.c]='.';log('💎 Gem collected!','ok');SFX.gem();spawnPop(a.r,a.c,'💎');renderGrid();}
+    else if(a.t==='key'){view.rows[a.r][a.c]='.';log('🔑 Got the key!','ok');SFX.key();spawnPop(a.r,a.c,'🔑');renderGrid();}
+    else if(a.t==='door'){view.rows[a.r][a.c]='.';log('🚪 Door unlocked!','ok');SFX.door();spawnPop(a.r,a.c,'✨');renderGrid();}
+    else if(a.t==='paint'){view.painted.add(a.r+','+a.c);SFX.paint();renderGrid();}
+    else if(a.t==='say'){log('🤖 Robo says: '+a.msg,'sayline');SFX.say();showBubble(a.msg);}
     setTimeout(step,a.t==='say'?Math.max(delay,250):delay);
   }
   step();
@@ -440,14 +788,15 @@ function animate(actions,done){
 let worker=null,watchdog=null;
 function run(){
   if(animating)return;
+  saveCode();
   const L=LEVELS[cur];
-  view=levelState(L);renderGrid();
+  view=levelState(L);renderGrid();placeRobot(0);
   winbanner.classList.remove('show');
   clearConsole();log('Running your code…');
   if(worker){worker.terminate();}
   worker=new Worker(workerURL);
   watchdog=setTimeout(()=>{
-    worker.terminate();worker=null;
+    worker.terminate();worker=null;SFX.err();
     log('🔥 Robo’s brain overheated! Your code ran forever without finishing. Is there a while loop that never ends?','err');
   },3000);
   worker.onmessage=e=>{
@@ -457,37 +806,42 @@ function run(){
       if(res.ok&&res.won&&!L.playground){
         const stars=starsFor(L,editor.value);
         if(!progress[cur]||stars>progress[cur])progress[cur]=stars;
-        saveProgress();renderLevelbar();
+        saveProgress();renderWorldbar();renderLevelbar();
         document.getElementById('winstars').textContent='★'.repeat(stars)+'☆'.repeat(3-stars);
         document.getElementById('winmsg').textContent='Level complete! Robo made it!';
         document.getElementById('winsub').textContent=stars===3?'Perfect! You beat the line challenge!':'Solved in '+codeLines(editor.value)+' lines. Try '+L.par+' or fewer for ★★★!';
         winbanner.classList.add('show');
         log('🏁 Level complete!','ok');
-        confetti();
+        SFX.win();confetti();
       }else if(res.ok&&L.playground){
         log('✅ Code finished. This is your playground, keep experimenting!','ok');
       }else if(res.ok&&!res.won){
         const need=[];
         if(res.collected<res.totalGems)need.push((res.totalGems-res.collected)+' more 💎');
-        need.push('Robo standing on the 🚩');
+        if(res.totalTargets&&res.paintedTargets<res.totalTargets)need.push((res.totalTargets-res.paintedTargets)+' more squares painted');
+        if(res.expectSay!==undefined&&res.saidOk===false)need.push('Robo to say "'+res.expectSay+'"');
+        if(res.expectSayAll)need.push('Robo to say each of: '+res.expectSayAll.join(', '));
+        if(res.expectSay===undefined&&LEVELS[cur].map.join('').includes('F'))need.push('Robo standing on the 🚩');
         log('Code finished, but no win yet. Still needed: '+need.join(' and ')+'. Try again!','err');
+        SFX.err();
       }else{
         log('❌ '+res.error,'err');
+        SFX.err();
       }
     });
   };
-  worker.postMessage({rows:LEVELS[cur].map,facing:LEVELS[cur].facing,code:editor.value});
+  worker.postMessage({rows:LEVELS[cur].map,facing:LEVELS[cur].facing,code:editor.value,expectSay:LEVELS[cur].expectSay,expectSayAll:LEVELS[cur].expectSayAll});
 }
 document.getElementById('btn-run').addEventListener('click',run);
 document.getElementById('btn-reset').addEventListener('click',()=>{
   if(animating)return;
-  view=levelState(LEVELS[cur]);renderGrid();
+  view=levelState(LEVELS[cur]);renderGrid();placeRobot(0);
   winbanner.classList.remove('show');
   clearConsole();log('Board reset. Robo is back at the start.');
 });
 document.getElementById('btn-restart-code').addEventListener('click',()=>{
   if(animating)return;
-  editor.value=LEVELS[cur].starter;hintStage=0;
+  editor.value=LEVELS[cur].starter;hintStage=0;saveCode();
   log('Code reset to the starter.');
 });
 document.getElementById('btn-hint').addEventListener('click',()=>{
@@ -498,6 +852,48 @@ document.getElementById('btn-hint').addEventListener('click',()=>{
 document.getElementById('btn-next').addEventListener('click',()=>{
   if(cur<LEVELS.length-1)loadLevel(cur+1);
 });
+const speedBtn=document.getElementById('btn-speed');
+function renderSpeed(){speedBtn.textContent=fast?'🐇 Fast':'🐢 Normal';}
+speedBtn.addEventListener('click',()=>{
+  fast=!fast;renderSpeed();
+  try{localStorage.setItem('codequest2-fast',fast?'1':'0');}catch(e){}
+});
+renderSpeed();
+const soundBtn=document.getElementById('btn-sound');
+function renderSound(){soundBtn.textContent=muted?'🔇':'🔊';}
+soundBtn.addEventListener('click',()=>{
+  muted=!muted;renderSound();
+  try{localStorage.setItem('codequest2-mute',muted?'1':'0');}catch(e){}
+});
+renderSound();
+
+/* snippet chips */
+const SNIPPETS=[
+ ['move();','move();\n'],
+ ['turnLeft();','turnLeft();\n'],
+ ['turnRight();','turnRight();\n'],
+ ['paint();','paint();\n'],
+ ['say(…)','say("hello");\n'],
+ ['for loop','for (let i = 0; i < 3; i++) {\n  \n}\n'],
+ ['while loop','while (canMove()) {\n  \n}\n'],
+ ['if / else','if (canMove()) {\n  move();\n} else {\n  turnRight();\n}\n'],
+ ['function','function myTrick() {\n  \n}\nmyTrick();\n'],
+ ['variable','let count = 0;\n']
+];
+const snipsEl=document.getElementById('snips');
+SNIPPETS.forEach(([label,code])=>{
+  const b=document.createElement('button');
+  b.className='snip';b.textContent=label;
+  b.addEventListener('click',()=>{
+    const s=editor.selectionStart;
+    editor.value=editor.value.slice(0,s)+code+editor.value.slice(editor.selectionEnd);
+    editor.selectionStart=editor.selectionEnd=s+code.length;
+    editor.focus();saveCode();
+  });
+  snipsEl.appendChild(b);
+});
+
+editor.addEventListener('input',()=>saveCode());
 editor.addEventListener('keydown',e=>{
   if(e.key==='Tab'){
     e.preventDefault();
@@ -513,14 +909,7 @@ const donateCorner=document.getElementById('donate-corner');
 const donateMini=document.getElementById('donate-mini');
 document.getElementById('donate-close').addEventListener('click',()=>{donateCorner.style.display='none';donateMini.style.display='block';});
 donateMini.addEventListener('click',()=>{donateCorner.style.display='';donateMini.style.display='none';});
-let donateAuto=false;
-document.addEventListener('click',e=>{
-  if(donateAuto||donateCorner.style.display==='none')return;
-  if(donateCorner.contains(e.target)||donateMini.contains(e.target))return;
-  if(e.target.closest&&e.target.closest('.act,.lvlbtn,#editor')){
-    donateAuto=true;donateCorner.style.display='none';donateMini.style.display='block';
-  }
-},true);
+
 
 /* init */
 loadLevel(0);
